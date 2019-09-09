@@ -17,6 +17,6 @@ before_script:
   - rustup component add rustfmt
 
 script:
-  - cargo fmt --all -- --check
-  - cargo build --all --release
+  - cargo fmt --all -- --check || travis_terminate 1;
+  - cargo build --all --release || travis_terminate 1;
   - cargo test --verbose --all --release
