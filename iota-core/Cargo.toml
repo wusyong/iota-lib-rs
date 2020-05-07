@@ -16,3 +16,11 @@ iota-signing-preview = "0.1"
 iota-crypto-preview = "0.1"
 iota-client = { version = "0.5.0-alpha", path = "../iota-client" }
 iota-conversion = { version = "0.5.0", path = "../iota-conversion" }
+
+[dev-dependencies]
+criterion = "0.3"
+rand = "0.7.3"
+
+[[bench]]
+name = "benchmark"
+harness = false

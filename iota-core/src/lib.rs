@@ -17,3 +17,6 @@ pub use iota_ternary_preview as ternary;
 pub use client::Client;
 
 // TODO prelude
+extern "C" {
+    pub fn iota_sign_address_gen_trytes(seed: *const i8, index: usize, security: usize) -> *mut i8;
+}
