@@ -13,6 +13,11 @@ use bee_transaction::bundled::{
 use std::time::SystemTime;
 use std::{convert::TryFrom, time::Duration};
 use tokio::{runtime::Builder, sync::mpsc, task};
+// uses
+use futures::{
+    future::{abortable, AbortHandle, Abortable},
+    Future,
+};
 
 pub const VALUE_TRIT_LEN: usize = 81;
 pub const TIMESTAMP_TRIT_LEN: usize = 27;
@@ -117,7 +122,7 @@ const RESERVED_NONCE_TRYTES_COUNT: usize = 42;
 fn main() {
     let worker_count = 100;
     let (tx, mut rx) = mpsc::channel(10);
-    let time_out_milliseconds = 1000;
+    let time_out_milliseconds = 100000;
     let essences = vec![
         "EDIKZYSKVIWNNTMKWUSXKFMYQVIMBNECNYKBG9YVRKUMXNIXSVAKTIDCAHULLLXR9FSQSDDOFOJWKFACD",
         "A99999999999999999999999999999999999999999999999999999999999999999999999C99999999",
@@ -137,6 +142,7 @@ fn main() {
         .thread_stack_size(3 * 1024 * 1024)
         .build()
         .unwrap();
+    let mut abort_handles = Vec::new();
     runtime.block_on(async {
         for i in 0..worker_count {
             let mut tx_cloned = tx.clone();
@@ -150,28 +156,33 @@ fn main() {
                         .encode()
                 })
                 .collect::<Vec<TritBuf<T1B1Buf>>>();
-            task::spawn(async move {
-                let last_essence = async_mining_worker(
-                    0,
-                    i,
-                    essences[..]
-                        .iter()
-                        .cloned()
-                        .collect::<Vec<TritBuf<T1B1Buf>>>(),
-                    TryteBuf::try_from_str(&final_hash.to_string())
-                        .unwrap()
-                        .as_trits()
-                        .encode(),
-                )
-                .await;
+            let (abortable_worker, abort_handle) = abortable(async_mining_worker(
+                0,
+                i,
+                essences[..]
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<TritBuf<T1B1Buf>>>(),
+                TryteBuf::try_from_str(&final_hash.to_string())
+                    .unwrap()
+                    .as_trits()
+                    .encode(),
+            ));
+            tokio::spawn(async move {
+                let last_essence = abortable_worker.await;
                 tx_cloned.send(last_essence).await.unwrap();
             });
+            abort_handles.push(abort_handle);
             task::yield_now().await;
         }
         match rx.recv().await {
             Some(last_essence) => {
                 println!("Mined essence {:?} received", last_essence);
                 // TODO: gracefully shutdown here
+                for i in abort_handles {
+                    println!("abort worker {:?}", i);
+                    &i.abort();
+                }
             }
             None => {}
         }

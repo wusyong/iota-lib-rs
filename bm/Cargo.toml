@@ -12,3 +12,4 @@ bee-crypto = { git = "https://github.com/iotaledger/bee.git" }
 bee-transaction = { git = "https://github.com/Alex6323/bee-p.git" }
 bee-signing = { git = "https://github.com/iotaledger/bee.git" }
 tokio = { version = "0.2", features = ["full"] }
+futures = { version = "0.3"}
