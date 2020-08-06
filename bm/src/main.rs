@@ -1,19 +1,17 @@
-use bee_crypto::ternary::bigint::{
-    binary_representation::U32Repr, endianness::BigEndian, I384, T242, T243,
+use bee_crypto::ternary::{
+    bigint::{binary_representation::U32Repr, endianness::BigEndian, I384, T242, T243},
+    sponge::{Kerl, Sponge},
+    Hash,
 };
-
-// use bee_ternary::t3b1::T3B1Buf;
-use bee_crypto::ternary::sponge::{Kerl, Sponge};
-use bee_ternary::{t3b1::T3B1Buf, Btrit, T1B1Buf, TritBuf, TryteBuf};
-use std::convert::TryFrom;
-
-use bee_crypto::ternary::Hash;
 use bee_signing::ternary::wots::normalize;
+use bee_ternary::{t3b1::T3B1Buf, Btrit, T1B1Buf, TritBuf, TryteBuf};
 use bee_transaction::bundled::{
     Address, BundledTransactionBuilder, BundledTransactionError, BundledTransactionField, Index,
     Nonce, OutgoingBundleBuilder, Payload, Tag, Timestamp, Value, ADDRESS_TRIT_LEN, HASH_TRIT_LEN,
     NONCE_TRIT_LEN, PAYLOAD_TRIT_LEN, TAG_TRIT_LEN,
 };
+use std::{convert::TryFrom, time::Duration};
+use tokio::{runtime::Builder, task};
 
 pub const VALUE_TRIT_LEN: usize = 81;
 pub const TIMESTAMP_TRIT_LEN: usize = 27;
@@ -116,6 +114,8 @@ const HASH_TRYTES_COUNT: usize = 81;
 const RESERVED_NONCE_TRYTES_COUNT: usize = 42;
 
 fn main() {
+    let worker_count = 10;
+    let time_out_milliseconds = 1000;
     let essences = vec![
         "EDIKZYSKVIWNNTMKWUSXKFMYQVIMBNECNYKBG9YVRKUMXNIXSVAKTIDCAHULLLXR9FSQSDDOFOJWKFACD",
         "A99999999999999999999999999999999999999999999999999999999999999999999999C99999999",
@@ -128,21 +128,64 @@ fn main() {
     ];
     let final_hash =
         "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
-    mining_worker(
-        0,
-        0,
-        essences
-            .iter()
-            .map(|t| {
-                TryteBuf::try_from_str(&(*t).to_string())
-                    .unwrap()
-                    .as_trits()
-                    .encode()
-            })
-            .collect::<Vec<TritBuf<T1B1Buf>>>(),
-        String::from(final_hash),
-    );
-    println!("hash is found!");
+    let mut runtime = Builder::new()
+        .threaded_scheduler()
+        .core_threads(worker_count)
+        .thread_name("bundle-miner")
+        .thread_stack_size(3 * 1024 * 1024)
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        for i in 0..10 {
+            let essences = essences
+                .clone()
+                .iter()
+                .map(|t| {
+                    TryteBuf::try_from_str(&(*t).to_string())
+                        .unwrap()
+                        .as_trits()
+                        .encode()
+                })
+                .collect::<Vec<TritBuf<T1B1Buf>>>();
+            task::spawn(async move {
+                async_mining_worker(
+                    0,
+                    i,
+                    essences[..]
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<TritBuf<T1B1Buf>>>(),
+                    String::from(final_hash),
+                )
+                .await;
+            });
+            task::yield_now().await;
+        }
+    });
+    println!("All tasks are spawned");
+    runtime.shutdown_timeout(Duration::from_millis(time_out_milliseconds));
+}
+
+/// The mining worker, stop when timeout or the created_hash == target_hash
+/// TODO: use async func and replace the max_count while loop with timeout signal
+pub async fn async_mining_worker(
+    increment: i64,
+    worker_id: i32,
+    mut essences: Vec<TritBuf<T1B1Buf>>,
+    target_hash: String,
+) {
+    let mut last_essence: TritBuf<T1B1Buf> = essences.pop().unwrap();
+    let kerl = prepare_keccak_384(&essences);
+
+    let obselete_tag = create_obsolete_tag(increment, worker_id);
+    last_essence = update_essense_with_new_obsolete_tag(last_essence, &obselete_tag);
+    let mut hash_str = String::default();
+    while target_hash != hash_str {
+        last_essence = increase_essense(last_essence);
+        let hash = absorb_and_get_normalized_bundle_hash(kerl.clone(), &last_essence);
+        hash_str = trit_buf_to_string(&hash);
+    }
+    println!("hash is found at worker {:?}!", worker_id);
 }
 
 /// The mining worker, stop when timeout or the created_hash == target_hash
@@ -281,7 +324,6 @@ pub fn get_outgoing_bundle_builder(
 }
 
 /// Absorb the input essences and return the Kerl
-/// use &[TritBuf<T1B1Buf>] as input
 pub fn prepare_keccak_384(essences: &[TritBuf<T1B1Buf>]) -> Kerl {
     let mut kerl = Kerl::new();
     for essence in essences.iter() {
@@ -310,7 +352,7 @@ pub fn increase_essense(essence: TritBuf<T1B1Buf>) -> TritBuf<T1B1Buf> {
         .into_inner()
 }
 
-/// Cast TritBuf to String for verification usage
+/// Cast TritBuf to String for verification usage and ease of observation
 pub fn trit_buf_to_string(trit_buf: &TritBuf<T1B1Buf>) -> String {
     TritBuf::<T3B1Buf>::from_i8s(trit_buf.as_i8_slice())
         .unwrap()
