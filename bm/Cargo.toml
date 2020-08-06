@@ -1,0 +1,13 @@
+[package]
+name = "bm"
+version = "0.1.0"
+authors = ["bingyanglin <bingyang.lin@iota.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bee-ternary = { version = "0.3.1-alpha", git = "https://github.com/iotaledger/bee.git"}
+bee-crypto = { git = "https://github.com/iotaledger/bee.git" }
+bee-transaction = { git = "https://github.com/Alex6323/bee-p.git" }
+bee-signing = { git = "https://github.com/iotaledger/bee.git" }
