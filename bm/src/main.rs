@@ -10,10 +10,8 @@ use bee_transaction::bundled::{
     Nonce, OutgoingBundleBuilder, Payload, Tag, Timestamp, Value, ADDRESS_TRIT_LEN, HASH_TRIT_LEN,
     NONCE_TRIT_LEN, PAYLOAD_TRIT_LEN, TAG_TRIT_LEN,
 };
-
-use std::{convert::TryFrom, thread, time::Duration};
-use tokio::time;
-use tokio::{runtime::Builder, sync::mpsc, task};
+use std::convert::TryFrom;
+use tokio::{runtime::Builder, sync::mpsc, task, time};
 // uses
 use futures::future::abortable;
 
@@ -64,6 +62,12 @@ impl Field {
             self.trit_offset.length / 5 + 1
         }
     }
+}
+
+#[derive(Debug)]
+pub enum Event {
+    MinedEssence(TritBuf<T1B1Buf>),
+    Timeout,
 }
 
 /// TODO: Remove this when they are explosed to public in bee_transaction
@@ -120,8 +124,7 @@ const RESERVED_NONCE_TRYTES_COUNT: usize = 42;
 fn main() {
     let worker_count = 5;
     let (tx, mut rx) = mpsc::channel(10);
-    let time_out_milliseconds = 100000;
-    let time_out_seconds = 10;
+    let time_out_seconds = 5;
     let essences = vec![
         "EDIKZYSKVIWNNTMKWUSXKFMYQVIMBNECNYKBG9YVRKUMXNIXSVAKTIDCAHULLLXR9FSQSDDOFOJWKFACD",
         "A99999999999999999999999999999999999999999999999999999999999999999999999C99999999",
@@ -168,29 +171,42 @@ fn main() {
                     .encode(),
             ));
             tokio::spawn(async move {
-                let last_essence = abortable_worker.await;
-                tx_cloned.send(last_essence).await.unwrap();
+                if let Ok(essence) = abortable_worker.await {
+                    tx_cloned.send(Event::MinedEssence(essence)).await.unwrap();
+                }
             });
             abort_handles.push(abort_handle);
             task::yield_now().await;
         }
         let (abortable_worker, abort_handle) = abortable(timeout_worker(time_out_seconds));
+        let mut tx_cloned = tx.clone();
         tokio::spawn(async move {
-            let _ = abortable_worker.await;
-            // tx_cloned.send(_).await.unwrap();
+            if let Ok(_) = abortable_worker.await {
+                tx_cloned.send(Event::Timeout).await.unwrap();
+            }
         });
         abort_handles.push(abort_handle);
-        match rx.recv().await {
-            Some(last_essence) => {
-                println!("Mined essence {:?} received", last_essence);
-                // TODO: gracefully shutdown here
-                for i in abort_handles {
-                    println!("worker abort before: {:?}", i);
-                    i.abort();
-                    println!("worker abort after: {:?}", i);
+        if let Some(event) = rx.recv().await {
+            match event {
+                Event::MinedEssence(essence) => {
+                    println!("Mined essence {:?} received", essence);
+                    // TODO: gracefully shutdown here
+                    for i in abort_handles {
+                        println!("worker abort before: {:?}", i);
+                        i.abort();
+                        println!("worker abort after: {:?}", i);
+                    }
+                }
+                Event::Timeout => {
+                    println!("Timeout");
+                    for i in abort_handles {
+                        println!("worker abort before: {:?}", i);
+                        i.abort();
+                        println!("worker abort after: {:?}", i);
+                    }
                 }
             }
-            None => {}
+        } else {
         }
     });
     println!("All tasks are spawned");
@@ -199,7 +215,9 @@ fn main() {
 
 pub async fn timeout_worker(seconds: u64) {
     println!("start");
-    time::delay_for(time::Duration::from_secs(seconds)).await
+    time::delay_for(time::Duration::from_secs(seconds)).await;
+    // async { thread::sleep(Duration::from_secs(seconds)) }.await;
+    println!("end");
 }
 
 /// The mining worker, stop when timeout or the created_hash == target_hash
@@ -222,6 +240,7 @@ pub async fn async_mining_worker(
         tokio::task::yield_now().await;
         mined_hash = absorb_and_get_normalized_bundle_hash(kerl.clone(), &last_essence).await;
         tokio::task::yield_now().await;
+        // println!("worker {:?} runs", worker_id);
     }
     println!("hash is found at worker {:?}!", worker_id);
     last_essence
