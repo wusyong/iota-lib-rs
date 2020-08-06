@@ -11,7 +11,7 @@ use bee_transaction::bundled::{
     NONCE_TRIT_LEN, PAYLOAD_TRIT_LEN, TAG_TRIT_LEN,
 };
 use std::{convert::TryFrom, time::Duration};
-use tokio::{runtime::Builder, task};
+use tokio::{runtime::Builder, sync::mpsc, task};
 
 pub const VALUE_TRIT_LEN: usize = 81;
 pub const TIMESTAMP_TRIT_LEN: usize = 27;
@@ -115,6 +115,7 @@ const RESERVED_NONCE_TRYTES_COUNT: usize = 42;
 
 fn main() {
     let worker_count = 10;
+    let (tx, mut rx) = mpsc::channel(10);
     let time_out_milliseconds = 1000;
     let essences = vec![
         "EDIKZYSKVIWNNTMKWUSXKFMYQVIMBNECNYKBG9YVRKUMXNIXSVAKTIDCAHULLLXR9FSQSDDOFOJWKFACD",
@@ -137,6 +138,7 @@ fn main() {
         .unwrap();
     runtime.block_on(async {
         for i in 0..10 {
+            let mut tx_cloned = tx.clone();
             let essences = essences
                 .clone()
                 .iter()
@@ -148,18 +150,29 @@ fn main() {
                 })
                 .collect::<Vec<TritBuf<T1B1Buf>>>();
             task::spawn(async move {
-                async_mining_worker(
+                let last_essence = async_mining_worker(
                     0,
                     i,
                     essences[..]
                         .iter()
                         .cloned()
                         .collect::<Vec<TritBuf<T1B1Buf>>>(),
-                    String::from(final_hash),
+                    TryteBuf::try_from_str(&final_hash.to_string())
+                        .unwrap()
+                        .as_trits()
+                        .encode(),
                 )
                 .await;
+                tx_cloned.send(last_essence).await.unwrap();
             });
             task::yield_now().await;
+        }
+        match rx.recv().await {
+            Some(last_essence) => {
+                println!("Mined essence {:?} received", last_essence);
+                // TODO: gracefully shutdown here
+            }
+            None => {}
         }
     });
     println!("All tasks are spawned");
@@ -167,25 +180,26 @@ fn main() {
 }
 
 /// The mining worker, stop when timeout or the created_hash == target_hash
+/// Return the mined essence for the last transaction
 /// TODO: use async func and replace the max_count while loop with timeout signal
 pub async fn async_mining_worker(
     increment: i64,
     worker_id: i32,
     mut essences: Vec<TritBuf<T1B1Buf>>,
-    target_hash: String,
-) {
+    target_hash: TritBuf<T1B1Buf>,
+) -> TritBuf<T1B1Buf> {
     let mut last_essence: TritBuf<T1B1Buf> = essences.pop().unwrap();
     let kerl = prepare_keccak_384(&essences);
 
     let obselete_tag = create_obsolete_tag(increment, worker_id);
     last_essence = update_essense_with_new_obsolete_tag(last_essence, &obselete_tag);
-    let mut hash_str = String::default();
-    while target_hash != hash_str {
+    let mut mined_hash = TritBuf::<T1B1Buf>::new();
+    while target_hash != mined_hash {
         last_essence = increase_essense(last_essence);
-        let hash = absorb_and_get_normalized_bundle_hash(kerl.clone(), &last_essence);
-        hash_str = trit_buf_to_string(&hash);
+        mined_hash = absorb_and_get_normalized_bundle_hash(kerl.clone(), &last_essence);
     }
     println!("hash is found at worker {:?}!", worker_id);
+    last_essence
 }
 
 /// The mining worker, stop when timeout or the created_hash == target_hash
