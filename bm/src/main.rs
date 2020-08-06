@@ -10,14 +10,12 @@ use bee_transaction::bundled::{
     Nonce, OutgoingBundleBuilder, Payload, Tag, Timestamp, Value, ADDRESS_TRIT_LEN, HASH_TRIT_LEN,
     NONCE_TRIT_LEN, PAYLOAD_TRIT_LEN, TAG_TRIT_LEN,
 };
-use std::time::SystemTime;
-use std::{convert::TryFrom, time::Duration};
+
+use std::{convert::TryFrom, thread, time::Duration};
+use tokio::time;
 use tokio::{runtime::Builder, sync::mpsc, task};
 // uses
-use futures::{
-    future::{abortable, AbortHandle, Abortable},
-    Future,
-};
+use futures::future::abortable;
 
 pub const VALUE_TRIT_LEN: usize = 81;
 pub const TIMESTAMP_TRIT_LEN: usize = 27;
@@ -120,9 +118,10 @@ const HASH_TRYTES_COUNT: usize = 81;
 const RESERVED_NONCE_TRYTES_COUNT: usize = 42;
 
 fn main() {
-    let worker_count = 100;
+    let worker_count = 5;
     let (tx, mut rx) = mpsc::channel(10);
     let time_out_milliseconds = 100000;
+    let time_out_seconds = 10;
     let essences = vec![
         "EDIKZYSKVIWNNTMKWUSXKFMYQVIMBNECNYKBG9YVRKUMXNIXSVAKTIDCAHULLLXR9FSQSDDOFOJWKFACD",
         "A99999999999999999999999999999999999999999999999999999999999999999999999C99999999",
@@ -175,20 +174,32 @@ fn main() {
             abort_handles.push(abort_handle);
             task::yield_now().await;
         }
+        let (abortable_worker, abort_handle) = abortable(timeout_worker(time_out_seconds));
+        tokio::spawn(async move {
+            let _ = abortable_worker.await;
+            // tx_cloned.send(_).await.unwrap();
+        });
+        abort_handles.push(abort_handle);
         match rx.recv().await {
             Some(last_essence) => {
                 println!("Mined essence {:?} received", last_essence);
                 // TODO: gracefully shutdown here
                 for i in abort_handles {
-                    println!("abort worker {:?}", i);
-                    &i.abort();
+                    println!("worker abort before: {:?}", i);
+                    i.abort();
+                    println!("worker abort after: {:?}", i);
                 }
             }
             None => {}
         }
     });
     println!("All tasks are spawned");
-    runtime.shutdown_timeout(Duration::from_millis(time_out_milliseconds));
+    // runtime.shutdown_timeout(Duration::from_millis(time_out_milliseconds));
+}
+
+pub async fn timeout_worker(seconds: u64) {
+    println!("start");
+    time::delay_for(time::Duration::from_secs(seconds)).await
 }
 
 /// The mining worker, stop when timeout or the created_hash == target_hash
@@ -202,9 +213,7 @@ pub async fn async_mining_worker(
     println!("worker {:?} starts", worker_id);
     let mut last_essence: TritBuf<T1B1Buf> = essences.pop().unwrap();
     let kerl = prepare_keccak_384(&essences).await;
-    tokio::task::yield_now().await;
     let obselete_tag = create_obsolete_tag(increment, worker_id).await;
-    tokio::task::yield_now().await;
     last_essence = update_essense_with_new_obsolete_tag(last_essence, &obselete_tag).await;
     tokio::task::yield_now().await;
     let mut mined_hash = TritBuf::<T1B1Buf>::new();
@@ -389,38 +398,26 @@ pub async fn update_essense_with_new_obsolete_tag(
     mut essence: TritBuf<T1B1Buf>,
     obselete_tag: &TritBuf<T1B1Buf>,
 ) -> TritBuf<T1B1Buf> {
-    let obselete_tag_i8s = async { obselete_tag.as_i8_slice() }.await;
-    tokio::task::yield_now().await;
-    let essence_i8s = async { unsafe { essence.as_i8_slice_mut() } }.await;
-    tokio::task::yield_now().await;
-    async { essence_i8s[TAG_TRIT_LEN..TAG_TRIT_LEN * 2].copy_from_slice(obselete_tag_i8s) }.await;
-    tokio::task::yield_now().await;
+    let obselete_tag_i8s = obselete_tag.as_i8_slice();
+    let essence_i8s = unsafe { essence.as_i8_slice_mut() };
+    essence_i8s[TAG_TRIT_LEN..TAG_TRIT_LEN * 2].copy_from_slice(obselete_tag_i8s);
     let updated_obselete_tag = async { TritBuf::<T1B1Buf>::from_i8s(essence_i8s).unwrap() }.await;
-    tokio::task::yield_now().await;
     updated_obselete_tag
 }
 
 /// Create the obsolete tag by the increment (the 43th-81th trits) and worker_id (first 42 trits)
 pub async fn create_obsolete_tag(increment: i64, worker_id: i32) -> TritBuf<T1B1Buf> {
-    let mut zero_tritbuf = async { TritBuf::<T1B1Buf>::zeros(TAG_TRIT_LEN) }.await;
-    tokio::task::yield_now().await;
+    let mut zero_tritbuf = TritBuf::<T1B1Buf>::zeros(TAG_TRIT_LEN);
     let reserved_nonce_tritbuf = async { TritBuf::<T1B1Buf>::from(increment) }.await;
-    tokio::task::yield_now().await;
     let reserved_nonce_trits = async { reserved_nonce_tritbuf.as_i8_slice() }.await;
-    tokio::task::yield_now().await;
     let other_essence_tritbuf = async { TritBuf::<T1B1Buf>::from(worker_id) }.await;
-    tokio::task::yield_now().await;
     let other_essence_trits = async { other_essence_tritbuf.as_i8_slice() }.await;
-    tokio::task::yield_now().await;
     let output = async { unsafe { zero_tritbuf.as_i8_slice_mut() } }.await;
-    tokio::task::yield_now().await;
     let mut reserved_nonce_trits_len = async { reserved_nonce_trits.len() }.await;
-    tokio::task::yield_now().await;
     if reserved_nonce_trits_len > RESERVED_NONCE_TRYTES_COUNT {
         reserved_nonce_trits_len = RESERVED_NONCE_TRYTES_COUNT;
     }
     async { output[..reserved_nonce_trits_len].clone_from_slice(reserved_nonce_trits) }.await;
-    tokio::task::yield_now().await;
     let mut other_trits_len = RESERVED_NONCE_TRYTES_COUNT + other_essence_trits.len();
     if other_trits_len > HASH_TRYTES_COUNT {
         other_trits_len = HASH_TRYTES_COUNT;
@@ -429,9 +426,7 @@ pub async fn create_obsolete_tag(increment: i64, worker_id: i32) -> TritBuf<T1B1
         output[RESERVED_NONCE_TRYTES_COUNT..other_trits_len].clone_from_slice(other_essence_trits)
     }
     .await;
-    tokio::task::yield_now().await;
     let obsolete_tag = async { TritBuf::<T1B1Buf>::from_i8s(output).unwrap() }.await;
-    tokio::task::yield_now().await;
     obsolete_tag
 }
 #[tokio::test]
