@@ -142,6 +142,7 @@ fn main() {
         .core_threads(1)
         .thread_name("bundle-miner")
         .thread_stack_size(3 * 1024 * 1024)
+        .enable_time()
         .build()
         .unwrap();
     let mut abort_handles = Vec::new();
@@ -161,10 +162,7 @@ fn main() {
             let (abortable_worker, abort_handle) = abortable(async_mining_worker(
                 0,
                 i,
-                essences[..]
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<TritBuf<T1B1Buf>>>(),
+                essences[..].to_vec(),
                 TryteBuf::try_from_str(&final_hash.to_string())
                     .unwrap()
                     .as_trits()
@@ -181,7 +179,7 @@ fn main() {
         let (abortable_worker, abort_handle) = abortable(timeout_worker(time_out_seconds));
         let mut tx_cloned = tx.clone();
         tokio::spawn(async move {
-            if let Ok(_) = abortable_worker.await {
+            if abortable_worker.await.is_ok() {
                 tx_cloned.send(Event::Timeout).await.unwrap();
             }
         });
@@ -192,32 +190,23 @@ fn main() {
                     println!("Mined essence {:?} received", essence);
                     // TODO: gracefully shutdown here
                     for i in abort_handles {
-                        println!("worker abort before: {:?}", i);
                         i.abort();
-                        println!("worker abort after: {:?}", i);
                     }
                 }
                 Event::Timeout => {
                     println!("Timeout");
                     for i in abort_handles {
-                        println!("worker abort before: {:?}", i);
                         i.abort();
-                        println!("worker abort after: {:?}", i);
                     }
                 }
             }
         } else {
         }
     });
-    println!("All tasks are spawned");
-    // runtime.shutdown_timeout(Duration::from_millis(time_out_milliseconds));
 }
 
 pub async fn timeout_worker(seconds: u64) {
-    println!("start");
     time::delay_for(time::Duration::from_secs(seconds)).await;
-    // async { thread::sleep(Duration::from_secs(seconds)) }.await;
-    println!("end");
 }
 
 /// The mining worker, stop when timeout or the created_hash == target_hash
@@ -228,7 +217,6 @@ pub async fn async_mining_worker(
     mut essences: Vec<TritBuf<T1B1Buf>>,
     target_hash: TritBuf<T1B1Buf>,
 ) -> TritBuf<T1B1Buf> {
-    println!("worker {:?} starts", worker_id);
     let mut last_essence: TritBuf<T1B1Buf> = essences.pop().unwrap();
     let kerl = prepare_keccak_384(&essences).await;
     let obselete_tag = create_obsolete_tag(increment, worker_id).await;
@@ -240,7 +228,6 @@ pub async fn async_mining_worker(
         tokio::task::yield_now().await;
         mined_hash = absorb_and_get_normalized_bundle_hash(kerl.clone(), &last_essence).await;
         tokio::task::yield_now().await;
-        // println!("worker {:?} runs", worker_id);
     }
     println!("hash is found at worker {:?}!", worker_id);
     last_essence
@@ -420,8 +407,7 @@ pub async fn update_essense_with_new_obsolete_tag(
     let obselete_tag_i8s = obselete_tag.as_i8_slice();
     let essence_i8s = unsafe { essence.as_i8_slice_mut() };
     essence_i8s[TAG_TRIT_LEN..TAG_TRIT_LEN * 2].copy_from_slice(obselete_tag_i8s);
-    let updated_obselete_tag = async { TritBuf::<T1B1Buf>::from_i8s(essence_i8s).unwrap() }.await;
-    updated_obselete_tag
+    async { TritBuf::<T1B1Buf>::from_i8s(essence_i8s).unwrap() }.await
 }
 
 /// Create the obsolete tag by the increment (the 43th-81th trits) and worker_id (first 42 trits)
@@ -445,8 +431,7 @@ pub async fn create_obsolete_tag(increment: i64, worker_id: i32) -> TritBuf<T1B1
         output[RESERVED_NONCE_TRYTES_COUNT..other_trits_len].clone_from_slice(other_essence_trits)
     }
     .await;
-    let obsolete_tag = async { TritBuf::<T1B1Buf>::from_i8s(output).unwrap() }.await;
-    obsolete_tag
+    async { TritBuf::<T1B1Buf>::from_i8s(output).unwrap() }.await
 }
 #[tokio::test]
 pub async fn test_get_outgoing_bundle_builder() {
