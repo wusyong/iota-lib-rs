@@ -224,7 +224,6 @@ impl BundleMiner {
                     }
                 });
                 abort_handles.push(abort_handle);
-                task::yield_now().await;
             }
             let (abortable_worker, abort_handle) = abortable(timeout_worker(self.timeout_seconds));
             let mut tx_cloned = tx.clone();
@@ -273,13 +272,12 @@ pub async fn mining_worker(
     let kerl = prepare_keccak_384(&essences).await;
     let obselete_tag = create_obsolete_tag(increment, worker_id).await;
     last_essence = update_essense_with_new_obsolete_tag(last_essence, &obselete_tag).await;
-    tokio::task::yield_now().await;
     let mut mined_hash = TritBuf::<T1B1Buf>::new();
     while target_hash != mined_hash {
         last_essence = increase_essense(last_essence).await;
-        tokio::task::yield_now().await;
+        task::yield_now().await;
         mined_hash = absorb_and_get_normalized_bundle_hash(kerl.clone(), &last_essence).await;
-        tokio::task::yield_now().await;
+        task::yield_now().await;
     }
     last_essence
 }
@@ -399,7 +397,7 @@ pub async fn prepare_keccak_384(essences: &[TritBuf<T1B1Buf>]) -> Kerl {
     let mut kerl = Kerl::new();
     for essence in essences.iter() {
         async { kerl.absorb(essence.as_slice()).unwrap() }.await;
-        tokio::task::yield_now().await;
+        task::yield_now().await;
     }
     kerl
 }
@@ -410,9 +408,8 @@ pub async fn absorb_and_get_normalized_bundle_hash(
     last_essence: &TritBuf<T1B1Buf>,
 ) -> TritBuf<T1B1Buf> {
     async { kerl.absorb(last_essence.as_slice()).unwrap() }.await;
-    tokio::task::yield_now().await;
+    task::yield_now().await;
     let hash = async { normalize(&kerl.squeeze().unwrap()).unwrap() }.await;
-    tokio::task::yield_now().await;
     hash
 }
 
@@ -422,7 +419,6 @@ pub async fn increase_essense(essence: TritBuf<T1B1Buf>) -> TritBuf<T1B1Buf> {
         I384::<BigEndian, U32Repr>::try_from(T243::<Btrit>::new(essence).into_t242()).unwrap()
     }
     .await;
-    tokio::task::yield_now().await;
     async { essence_i384.add_inplace(TRITS82_BE_U32) }.await;
     let essence = async {
         T242::<Btrit>::try_from(essence_i384)
@@ -431,7 +427,6 @@ pub async fn increase_essense(essence: TritBuf<T1B1Buf>) -> TritBuf<T1B1Buf> {
             .into_inner()
     }
     .await;
-    tokio::task::yield_now().await;
     essence
 }
 
@@ -446,7 +441,6 @@ pub async fn trit_buf_to_string(trit_buf: &TritBuf<T1B1Buf>) -> String {
             .collect::<String>()
     }
     .await;
-    tokio::task::yield_now().await;
     trit_str
 }
 

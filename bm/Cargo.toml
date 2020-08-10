@@ -13,3 +13,8 @@ bee-transaction = { git = "https://github.com/Alex6323/bee-p.git" }
 bee-signing = { git = "https://github.com/iotaledger/bee.git" }
 tokio = { version = "0.2", features = ["full", "time"] }
 futures = { version = "0.3"}
+criterion = "0.3"
+
+[[bench]]
+name = "bundle_miner_benchmark"
+harness = false
