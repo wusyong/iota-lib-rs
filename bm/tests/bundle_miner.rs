@@ -1,5 +1,4 @@
-use bee_ternary::TryteBuf;
-use bee_ternary::{T1B1Buf, TritBuf};
+use bee_ternary::{T1B1Buf, TritBuf, TryteBuf};
 use bm::bundle_miner::{
     absorb_and_get_normalized_bundle_hash, create_obsolete_tag, get_outgoing_bundle_builder,
     increase_essense, mining_worker, prepare_keccak_384, trit_buf_to_string,
