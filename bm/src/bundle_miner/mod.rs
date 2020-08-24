@@ -193,9 +193,68 @@ impl BundleMinerBuilder {
     }
 }
 
+/// Trait for defining the mining criteria.
+pub trait StopMiningCriteria {
+    /// Judgement function for the stop criterion.
+    fn judge(&self, mined_hash: &TritBuf<T1B1Buf>, target_hash: &TritBuf<T1B1Buf>) -> bool;
+}
+
+/// Criteria of each tryte is less then the corresponding tryte in the max hash.
+#[derive(Copy, Clone)]
+pub struct LessThanMaxHash;
+
+/// Criteria of each tryte equals to then the corresponding tryte in the target hash.
+#[derive(Copy, Clone)]
+pub struct EqualTargetHash;
+
+/// The constant of `LessThanMaxHash` criterion.
+pub const LESS_THAN_MAX_HASH: LessThanMaxHash = LessThanMaxHash;
+
+/// The constant of `EqualTargetHash` criterion.
+pub const EQUAL_TRAGET_HASH: EqualTargetHash = EqualTargetHash;
+
+/// For `LessThanMaxHash` criterion, each tryte in mined hash should be smaller than that in the max hash.
+impl StopMiningCriteria for LessThanMaxHash {
+    fn judge(&self, mined_hash: &TritBuf<T1B1Buf>, target_hash: &TritBuf<T1B1Buf>) -> bool {
+        // Get the i8 slices from the mined bundle hash
+        let mined_bundle_hash_i8 = TritBuf::<T3B1Buf>::from_i8s(mined_hash.as_i8_slice())
+            .unwrap()
+            .as_i8_slice()
+            .to_vec();
+
+        // Get the i8 slices from the max bundle hash
+        let max_bundle_hash_i8 = TritBuf::<T3B1Buf>::from_i8s(target_hash.as_i8_slice())
+            .unwrap()
+            .as_i8_slice()
+            .to_vec();
+
+        // Check whether each tryte of mined hash is smaller than the corresponding tryte in the max hash
+        let larger_than_max_count: i8 = max_bundle_hash_i8
+            .iter()
+            .zip(&mined_bundle_hash_i8[..max_bundle_hash_i8.len()])
+            .map(|(&x, &y)| if x < y { 1 } else { 0 })
+            .collect::<Vec<i8>>()
+            .into_iter()
+            .sum();
+
+        // Return true if all of the trytes in the mined hash are smaller than those in the max hash
+        larger_than_max_count == 0
+    }
+}
+
+/// For `EqualTargetHash` criterion, each tryte in mined hash should equal to that in the max hash.
+impl StopMiningCriteria for EqualTargetHash {
+    fn judge(&self, mined_hash: &TritBuf<T1B1Buf>, target_hash: &TritBuf<T1B1Buf>) -> bool {
+        mined_hash == target_hash
+    }
+}
+
 impl BundleMiner {
     /// Start running mining workers
-    pub fn run(&mut self) -> BundleMinerEvent {
+    pub fn run(
+        &mut self,
+        criterion: impl StopMiningCriteria + std::marker::Send + 'static + Copy,
+    ) -> BundleMinerEvent {
         let (tx, mut rx) = mpsc::channel(self.mining_workers);
         let mut runtime = Builder::new()
             .threaded_scheduler()
@@ -214,6 +273,7 @@ impl BundleMiner {
                     i,
                     self.essences[..].to_vec(),
                     self.target_hash.clone(),
+                    criterion,
                 ));
                 tokio::spawn(async move {
                     if let Ok(mined_essence) = abortable_worker.await {
@@ -260,20 +320,21 @@ pub async fn timeout_worker(seconds: u64) {
     time::delay_for(time::Duration::from_secs(seconds)).await;
 }
 
-/// The mining worker, stop when timeout or the created_hash == target_hash
+/// The mining worker, stop when timeout or the criterion is met
 /// Return the mined essence for the last transaction
 pub async fn mining_worker(
     increment: i64,
     worker_id: i32,
     mut essences: Vec<TritBuf<T1B1Buf>>,
     target_hash: TritBuf<T1B1Buf>,
+    criterion: impl StopMiningCriteria,
 ) -> TritBuf<T1B1Buf> {
     let mut last_essence: TritBuf<T1B1Buf> = essences.pop().unwrap();
     let kerl = prepare_keccak_384(&essences).await;
     let obselete_tag = create_obsolete_tag(increment, worker_id).await;
     last_essence = update_essense_with_new_obsolete_tag(last_essence, &obselete_tag).await;
     let mut mined_hash = TritBuf::<T1B1Buf>::new();
-    while target_hash != mined_hash {
+    while !criterion.judge(&mined_hash, &target_hash) {
         last_essence = increase_essense(last_essence).await;
         task::yield_now().await;
         mined_hash = absorb_and_get_normalized_bundle_hash(kerl.clone(), &last_essence).await;

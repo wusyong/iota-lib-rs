@@ -2,7 +2,8 @@ use bee_ternary::{T1B1Buf, TritBuf, TryteBuf};
 use bm::bundle_miner::{
     absorb_and_get_normalized_bundle_hash, create_obsolete_tag, get_outgoing_bundle_builder,
     increase_essense, mining_worker, prepare_keccak_384, trit_buf_to_string,
-    update_essense_with_new_obsolete_tag, BundleMinerBuilder, BundleMinerEvent,
+    update_essense_with_new_obsolete_tag, BundleMinerBuilder, BundleMinerEvent, StopMiningCriteria,
+    EQUAL_TRAGET_HASH, LESS_THAN_MAX_HASH,
 };
 
 #[tokio::test]
@@ -145,8 +146,64 @@ pub async fn test_worker() {
             .unwrap()
             .as_trits()
             .encode(),
+        EQUAL_TRAGET_HASH,
     )
     .await;
+}
+
+#[test]
+pub fn test_equal_target_hash_criterion() {
+    let mined_hash = "NWAIJHLGJJCHKJL9EELLKKILAGK";
+    let target_hash_true = "NWAIJHLGJJCHKJL9EELLKKILAGK";
+    let target_hash_false = "NWAIJHLGJJCHK9L9EELLKKILAGK";
+    let target_hash_true_trit_buf = TryteBuf::try_from_str(&target_hash_true.to_string())
+        .unwrap()
+        .as_trits()
+        .encode();
+    let target_hash_false_trit_buf = TryteBuf::try_from_str(&target_hash_false.to_string())
+        .unwrap()
+        .as_trits()
+        .encode();
+    let mined_hash_trit_buf = TryteBuf::try_from_str(&mined_hash.to_string())
+        .unwrap()
+        .as_trits()
+        .encode();
+    assert_eq!(
+        true,
+        LESS_THAN_MAX_HASH.judge(&mined_hash_trit_buf, &target_hash_true_trit_buf)
+    );
+    assert_eq!(
+        false,
+        LESS_THAN_MAX_HASH.judge(&mined_hash_trit_buf, &target_hash_false_trit_buf)
+    );
+}
+
+#[test]
+pub fn test_less_than_max_hash_criterion() {
+    let max_hash_true = "NWAIJHLGJJCHKJL9EELLKKILAGK";
+    let max_hash_false = "NOPGBAGZHGZBJZHUC9TR9HFNTFE";
+    let mined_hash =
+        "NOPGBAGZHGZBJZHUC9TR9HFOTFEZXOCUJOUXVVMXMB9JJTYKGLOATSMMMJNU9IQHSWVEHBKOONQAZENGB";
+    let max_hash_true_trit_buf = TryteBuf::try_from_str(&max_hash_true.to_string())
+        .unwrap()
+        .as_trits()
+        .encode();
+    let max_hash_false_trit_buf = TryteBuf::try_from_str(&max_hash_false.to_string())
+        .unwrap()
+        .as_trits()
+        .encode();
+    let mined_hash_trit_buf = TryteBuf::try_from_str(&mined_hash.to_string())
+        .unwrap()
+        .as_trits()
+        .encode();
+    assert_eq!(
+        true,
+        LESS_THAN_MAX_HASH.judge(&mined_hash_trit_buf, &max_hash_true_trit_buf)
+    );
+    assert_eq!(
+        false,
+        LESS_THAN_MAX_HASH.judge(&mined_hash_trit_buf, &max_hash_false_trit_buf)
+    );
 }
 
 #[test]
@@ -232,7 +289,7 @@ pub fn test_bundle_miner_run() {
         )
         .timeout_seconds(10)
         .finish();
-    if let BundleMinerEvent::MinedEssence(mined_essence) = bundle_miner.run() {
+    if let BundleMinerEvent::MinedEssence(mined_essence) = bundle_miner.run(EQUAL_TRAGET_HASH) {
         assert_eq!(mined_essence, expected_essence);
     } else {
         panic!();
