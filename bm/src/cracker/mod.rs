@@ -44,33 +44,3 @@ pub fn get_the_max_tryte_values(vec_i8_first: Vec<i8>, vec_i8_second: Vec<i8>) -
         .map(|(&x, &y)| x.max(y))
         .collect()
 }
-
-/// Check whether each tryte in mined bundle hash are all smaller smaller than those in the max one
-pub fn mined_bundle_hash_is_good(
-    mined_bundle_hash: &TritBuf<T1B1Buf>,
-    max_bundle_hash: &TritBuf<T1B1Buf>,
-) -> bool {
-    // Get the i8 slices from the mined bundle hash
-    let mined_bundle_hash_i8 = TritBuf::<T3B1Buf>::from_i8s(mined_bundle_hash.as_i8_slice())
-        .unwrap()
-        .as_i8_slice()
-        .to_vec();
-
-    // Get the i8 slices from the max bundle hash
-    let max_bundle_hash_i8 = TritBuf::<T3B1Buf>::from_i8s(max_bundle_hash.as_i8_slice())
-        .unwrap()
-        .as_i8_slice()
-        .to_vec();
-
-    // Check whether each tryte of mined hash is smaller than the corresponding tryte in the max hash
-    let larger_than_max_count: i8 = max_bundle_hash_i8
-        .iter()
-        .zip(&mined_bundle_hash_i8[..max_bundle_hash_i8.len()])
-        .map(|(&x, &y)| if x < y { 1 } else { 0 })
-        .collect::<Vec<i8>>()
-        .into_iter()
-        .sum();
-
-    // Return true if all of the trytes in the mined hash are smaller than those in the max hash
-    larger_than_max_count == 0
-}
