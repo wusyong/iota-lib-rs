@@ -43,7 +43,7 @@ pub async fn test_obsolete_tag_creation() {
         "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
         "999999999999999999999999999999999999999999999999999999999999999C99999999C99999999",
     ];
-    let final_hash =
+    let target_hash =
         "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
     let kerl = prepare_keccak_384(
         &essences[..essences.len() - 1]
@@ -67,7 +67,7 @@ pub async fn test_obsolete_tag_creation() {
     let hash = absorb_and_get_normalized_bundle_hash(kerl, &last_essence).await;
 
     let hash_str = trit_buf_to_string(&hash).await;
-    assert_eq!(String::from(final_hash), hash_str);
+    assert_eq!(String::from(target_hash), hash_str);
 }
 
 #[tokio::test]
@@ -84,7 +84,7 @@ pub async fn test_obsolete_tag_increment() {
         "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
         "999999999999999999999999999999999999999999999999999999999999999C99999999C99999999",
     ];
-    let final_hash =
+    let target_hash =
         "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
     let kerl = prepare_keccak_384(
         &essences[..essences.len() - 1]
@@ -111,7 +111,7 @@ pub async fn test_obsolete_tag_increment() {
     let hash = absorb_and_get_normalized_bundle_hash(kerl, &last_essence).await;
 
     let hash_str = trit_buf_to_string(&hash).await;
-    assert_eq!(String::from(final_hash), hash_str);
+    assert_eq!(String::from(target_hash), hash_str);
 }
 
 #[tokio::test]
@@ -128,7 +128,7 @@ pub async fn test_worker() {
         "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
         "999999999999999999999999999999999999999999999999999999999999999C99999999C99999999",
     ];
-    let final_hash =
+    let target_hash =
         "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
     mining_worker(
         increment,
@@ -142,7 +142,7 @@ pub async fn test_worker() {
                     .encode()
             })
             .collect::<Vec<TritBuf<T1B1Buf>>>(),
-        TryteBuf::try_from_str(&final_hash.to_string())
+        TryteBuf::try_from_str(&target_hash.to_string())
             .unwrap()
             .as_trits()
             .encode(),
@@ -218,7 +218,7 @@ pub fn test_bundle_miner_builder() {
         "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
         "999999999999999999999999999999999999999999999999999999999999999C99999999C99999999",
     ];
-    let final_hash =
+    let target_hash =
         "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
 
     let _ = BundleMinerBuilder::new()
@@ -237,7 +237,7 @@ pub fn test_bundle_miner_builder() {
                 .collect::<Vec<TritBuf<T1B1Buf>>>(),
         )
         .target_hash(
-            TryteBuf::try_from_str(&final_hash.to_string())
+            TryteBuf::try_from_str(&target_hash.to_string())
                 .unwrap()
                 .as_trits()
                 .encode(),
@@ -258,7 +258,7 @@ pub fn test_bundle_miner_run() {
         "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
         "999999999999999999999999999999999999999999999999999999999999999C99999999C99999999",
     ];
-    let final_hash =
+    let target_hash =
         "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
     let expected_essence =
         "999999999999999999999999999C99999999999999999999999999999999999C99999999C99999999";
@@ -282,7 +282,7 @@ pub fn test_bundle_miner_run() {
                 .collect::<Vec<TritBuf<T1B1Buf>>>(),
         )
         .target_hash(
-            TryteBuf::try_from_str(&final_hash.to_string())
+            TryteBuf::try_from_str(&target_hash.to_string())
                 .unwrap()
                 .as_trits()
                 .encode(),

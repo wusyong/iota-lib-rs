@@ -112,7 +112,7 @@ pub fn bundle_mining_worker() {
             "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
             "999999999999999999999999999999999999999999999999999999999999999C99999999C99999999",
         ];
-        let final_hash =
+        let target_hash =
             "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
         mining_worker(
             increment,
@@ -126,7 +126,7 @@ pub fn bundle_mining_worker() {
                         .encode()
                 })
                 .collect::<Vec<TritBuf<T1B1Buf>>>(),
-            TryteBuf::try_from_str(&final_hash.to_string())
+            TryteBuf::try_from_str(&target_hash.to_string())
                 .unwrap()
                 .as_trits()
                 .encode(),
