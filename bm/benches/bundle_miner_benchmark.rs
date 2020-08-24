@@ -2,7 +2,7 @@ use bee_ternary::TryteBuf;
 use bee_ternary::{T1B1Buf, TritBuf};
 use bm::bundle_miner::{
     absorb_and_get_normalized_bundle_hash, create_obsolete_tag, increase_essense, mining_worker,
-    prepare_keccak_384, update_essense_with_new_obsolete_tag,
+    prepare_keccak_384, update_essense_with_new_obsolete_tag, EqualTargetHash,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use tokio::runtime::Runtime;
@@ -130,6 +130,7 @@ pub fn bundle_mining_worker() {
                 .unwrap()
                 .as_trits()
                 .encode(),
+            EqualTargetHash,
         )
         .await;
     });
