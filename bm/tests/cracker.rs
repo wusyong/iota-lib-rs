@@ -21,7 +21,7 @@ pub async fn test_get_max_normalized_bundle_hash() {
                 .encode()
         })
         .collect::<Vec<TritBuf<T1B1Buf>>>();
-    let max_hash_computed = get_max_normalized_bundle_hash(hashes_trit_buf_test, security_level);
+    let max_hash_computed = get_max_normalized_bundle_hash(&hashes_trit_buf_test, security_level);
     assert_eq!(
         String::from(max_hash_expected),
         trit_buf_to_string(&max_hash_computed).await

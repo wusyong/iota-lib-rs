@@ -218,8 +218,6 @@ pub fn test_bundle_miner_builder() {
         "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
         "999999999999999999999999999999999999999999999999999999999999999C99999999C99999999",
     ];
-    let target_hash =
-        "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
 
     let _ = BundleMinerBuilder::new()
         .core_threads(1)
@@ -235,12 +233,6 @@ pub fn test_bundle_miner_builder() {
                         .encode()
                 })
                 .collect::<Vec<TritBuf<T1B1Buf>>>(),
-        )
-        .target_hash(
-            TryteBuf::try_from_str(&target_hash.to_string())
-                .unwrap()
-                .as_trits()
-                .encode(),
         )
         .timeout_seconds(10)
         .finish();
@@ -281,15 +273,15 @@ pub fn test_bundle_miner_equal_target_hash_run() {
                 })
                 .collect::<Vec<TritBuf<T1B1Buf>>>(),
         )
-        .target_hash(
-            TryteBuf::try_from_str(&target_hash.to_string())
-                .unwrap()
-                .as_trits()
-                .encode(),
-        )
         .timeout_seconds(10)
         .finish();
-    if let BundleMinerEvent::MinedEssence(mined_essence) = bundle_miner.run(EQUAL_TRAGET_HASH) {
+    if let BundleMinerEvent::MinedEssence(mined_essence) = bundle_miner.run(
+        TryteBuf::try_from_str(&target_hash.to_string())
+            .unwrap()
+            .as_trits()
+            .encode(),
+        EQUAL_TRAGET_HASH,
+    ) {
         assert_eq!(mined_essence, expected_essence);
     } else {
         panic!();
@@ -331,15 +323,15 @@ pub fn test_bundle_miner_less_than_max_hash_run() {
                 })
                 .collect::<Vec<TritBuf<T1B1Buf>>>(),
         )
-        .target_hash(
-            TryteBuf::try_from_str(&target_hash.to_string())
-                .unwrap()
-                .as_trits()
-                .encode(),
-        )
         .timeout_seconds(10)
         .finish();
-    if let BundleMinerEvent::MinedEssence(mined_essence) = bundle_miner.run(LESS_THAN_MAX_HASH) {
+    if let BundleMinerEvent::MinedEssence(mined_essence) = bundle_miner.run(
+        TryteBuf::try_from_str(&target_hash.to_string())
+            .unwrap()
+            .as_trits()
+            .encode(),
+        LESS_THAN_MAX_HASH,
+    ) {
         assert_eq!(mined_essence, expected_essence);
     } else {
         panic!();

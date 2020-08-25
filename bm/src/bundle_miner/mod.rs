@@ -131,8 +131,6 @@ pub struct BundleMinerBuilder {
     mining_workers: Option<usize>,
     /// The essences from transactions for hash mining.
     essences: Option<Vec<TritBuf<T1B1Buf>>>,
-    /// The target hash to mine.
-    target_hash: Option<TritBuf<T1B1Buf>>,
     /// Timeout in seconds.
     timeout_seconds: Option<u64>,
 }
@@ -144,8 +142,6 @@ pub struct BundleMiner {
     mining_workers: usize,
     /// The essences from transactions for hash mining.
     essences: Vec<TritBuf<T1B1Buf>>,
-    /// The target hash to mine.
-    target_hash: TritBuf<T1B1Buf>,
     /// Timeout in seconds.
     timeout_seconds: u64,
 }
@@ -170,11 +166,6 @@ impl BundleMinerBuilder {
         self.essences.replace(essences);
         self
     }
-    /// Sets the target hash of the bundle miner.
-    pub fn target_hash(mut self, target_hash: TritBuf<T1B1Buf>) -> Self {
-        self.target_hash.replace(target_hash);
-        self
-    }
     /// Sets the timeout of the bundle miner in seconds.
     pub fn timeout_seconds(mut self, timeout_seconds: u64) -> Self {
         self.timeout_seconds.replace(timeout_seconds);
@@ -187,7 +178,6 @@ impl BundleMinerBuilder {
             core_threads: self.core_threads.unwrap(),
             mining_workers: self.mining_workers.unwrap(),
             essences: self.essences.unwrap(),
-            target_hash: self.target_hash.unwrap(),
             timeout_seconds: self.timeout_seconds.unwrap(),
         }
     }
@@ -253,6 +243,7 @@ impl BundleMiner {
     /// Start running mining workers
     pub fn run(
         &mut self,
+        target_hash: TritBuf<T1B1Buf>,
         criterion: impl StopMiningCriteria + std::marker::Send + 'static + Copy,
     ) -> BundleMinerEvent {
         let (tx, mut rx) = mpsc::channel(self.mining_workers);
@@ -272,7 +263,7 @@ impl BundleMiner {
                     0,
                     i,
                     self.essences[..].to_vec(),
-                    self.target_hash.clone(),
+                    target_hash.clone(),
                     criterion,
                 ));
                 tokio::spawn(async move {

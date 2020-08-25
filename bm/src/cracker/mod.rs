@@ -1,10 +1,70 @@
+use crate::bundle_miner::{BundleMiner, BundleMinerEvent, LESS_THAN_MAX_HASH};
 use bee_signing::ternary::wots::normalize;
 use bee_ternary::{T1B1Buf, T3B1Buf, TritBuf, Trits, T3B1};
 const MESSAGE_FRAGMENT_LENGTH: usize = 27;
 
+/// Builder for a logger output configuration.
+#[derive(Default)]
+pub struct CrackerBuilder {
+    /// The security level of the input hashes.
+    security_level: Option<usize>,
+    /// The input bundle hashes for cracking.
+    input_bundle_hashes: Option<Vec<TritBuf<T1B1Buf>>>,
+    /// The bundle miner used in cracker.
+    bundle_miner: Option<BundleMiner>,
+}
+
+pub struct Cracker {
+    /// The security level of the input hashes.
+    security_level: usize,
+    /// The input bundle hashes for cracking.
+    input_bundle_hashes: Vec<TritBuf<T1B1Buf>>,
+    /// The bundle miner used in cracker.
+    bundle_miner: BundleMiner,
+}
+
+impl CrackerBuilder {
+    /// Creates a new builder for a bundle miner.
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Sets the security level of the cracker.
+    pub fn security_level(mut self, security_level: usize) -> Self {
+        self.security_level.replace(security_level);
+        self
+    }
+    /// Sets the input bundle hashes of the cracker.
+    pub fn input_bundle_hashes(mut self, input_bundle_hashes: Vec<TritBuf<T1B1Buf>>) -> Self {
+        self.input_bundle_hashes.replace(input_bundle_hashes);
+        self
+    }
+    /// Sets the bundle miner of the cracker.
+    pub fn bundle_miner(mut self, bundle_miner: BundleMiner) -> Self {
+        self.bundle_miner.replace(bundle_miner);
+        self
+    }
+    /// Builds a cracker.
+    pub fn finish(self) -> Cracker {
+        Cracker {
+            security_level: self.security_level.unwrap(),
+            input_bundle_hashes: self.input_bundle_hashes.unwrap(),
+            bundle_miner: self.bundle_miner.unwrap(),
+        }
+    }
+}
+
+impl Cracker {
+    /// Start running mining workers
+    pub fn crack(&mut self) -> BundleMinerEvent {
+        let max_hash =
+            get_max_normalized_bundle_hash(&self.input_bundle_hashes, self.security_level);
+        self.bundle_miner.run(max_hash, LESS_THAN_MAX_HASH)
+    }
+}
+
 /// Get the maximum bundle hash by selecting the max trytes from all input bundle hashes
 pub fn get_max_normalized_bundle_hash(
-    bundle_hashes: Vec<TritBuf<T1B1Buf>>,
+    bundle_hashes: &Vec<TritBuf<T1B1Buf>>,
     security_level: usize,
 ) -> TritBuf<T1B1Buf> {
     // Normalize the bundle hashes
