@@ -333,7 +333,10 @@ pub async fn mining_worker(
     let kerl = prepare_keccak_384(&essences).await;
     let obselete_tag = create_obsolete_tag(increment, worker_id).await;
     last_essence = update_essense_with_new_obsolete_tag(last_essence, &obselete_tag).await;
-    let mut mined_hash = TritBuf::<T1B1Buf>::new();
+
+    // Note that we check the last essence with `zero` incresement first
+    // While in the go-lang version the first checked essence hash `one` incresement
+    let mut mined_hash = last_essence.clone();
     while !criterion.judge(&mined_hash, &target_hash) {
         last_essence = increase_essense(last_essence).await;
         task::yield_now().await;

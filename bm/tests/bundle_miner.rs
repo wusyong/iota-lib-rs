@@ -247,7 +247,7 @@ pub fn test_bundle_miner_builder() {
 }
 
 #[test]
-pub fn test_bundle_miner_run() {
+pub fn test_bundle_miner_equal_target_hash_run() {
     let essences = vec![
         "EDIKZYSKVIWNNTMKWUSXKFMYQVIMBNECNYKBG9YVRKUMXNIXSVAKTIDCAHULLLXR9FSQSDDOFOJWKFACD",
         "A99999999999999999999999999999999999999999999999999999999999999999999999C99999999",
@@ -290,6 +290,56 @@ pub fn test_bundle_miner_run() {
         .timeout_seconds(10)
         .finish();
     if let BundleMinerEvent::MinedEssence(mined_essence) = bundle_miner.run(EQUAL_TRAGET_HASH) {
+        assert_eq!(mined_essence, expected_essence);
+    } else {
+        panic!();
+    }
+}
+
+#[test]
+pub fn test_bundle_miner_less_than_max_hash_run() {
+    let essences = vec![
+        "EDIKZYSKVIWNNTMKWUSXKFMYQVIMBNECNYKBG9YVRKUMXNIXSVAKTIDCAHULLLXR9FSQSDDOFOJWKFACD",
+        "A99999999999999999999999999999999999999999999999999999999999999999999999C99999999",
+        "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
+        "Z99999999999999999999999999999999999999999999999999999999999999A99999999C99999999",
+        "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
+        "999999999999999999999999999999999999999999999999999999999999999B99999999C99999999",
+        "BMLAF9QKVBYJTGHTGFFNOVDTGEMA9MSXGTJYSRRHEYTMMKRMQYETPJVAADGYLPYMGBJERKLJVUZUZYRQD",
+        "999999999999999999999999999999999999999999999999999999999999999C99999999C99999999",
+    ];
+    let target_hash =
+        "NNNNNNFAHTZDAMSFMGDCKRWIMMVPVISUYXKTFADURMAEMTNFGBUMODCKQZPMWHUGISUOCWQQL99ZTGCJD";
+    let expected_essence =
+        "999999999999999999999999999C99999999999999999999999999999999999C99999999C99999999";
+    let expected_essence: TritBuf<T1B1Buf> = TryteBuf::try_from_str(&expected_essence.to_string())
+        .unwrap()
+        .as_trits()
+        .encode();
+    let mut bundle_miner = BundleMinerBuilder::new()
+        .core_threads(1)
+        .mining_workers(5)
+        .essences(
+            essences
+                .clone()
+                .iter()
+                .map(|t| {
+                    TryteBuf::try_from_str(&(*t).to_string())
+                        .unwrap()
+                        .as_trits()
+                        .encode()
+                })
+                .collect::<Vec<TritBuf<T1B1Buf>>>(),
+        )
+        .target_hash(
+            TryteBuf::try_from_str(&target_hash.to_string())
+                .unwrap()
+                .as_trits()
+                .encode(),
+        )
+        .timeout_seconds(10)
+        .finish();
+    if let BundleMinerEvent::MinedEssence(mined_essence) = bundle_miner.run(LESS_THAN_MAX_HASH) {
         assert_eq!(mined_essence, expected_essence);
     } else {
         panic!();
