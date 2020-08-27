@@ -7,10 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bee-ternary = { version = "0.3.1-alpha", git = "https://github.com/iotaledger/bee.git"}
-bee-crypto = { git = "https://github.com/iotaledger/bee.git" }
+bee-ternary = { version = "0.3.1-alpha", git = "https://github.com/iotaledger/bee.git", branch = "dev" }
+bee-crypto = { git = "https://github.com/iotaledger/bee.git", branch = "dev" }
 bee-transaction = { git = "https://github.com/Alex6323/bee-p.git" }
-bee-signing = { git = "https://github.com/iotaledger/bee.git" }
+bee-signing = { git = "https://github.com/iotaledger/bee.git", branch = "dev" }
 tokio = { version = "0.2", features = ["rt-core", "rt-threaded", "sync", "time", "macros"] }
 futures = { version = "0.3"}
 criterion = "0.3"
